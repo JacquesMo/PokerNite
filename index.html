@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Poker Nite — Ledger & Optimal Venmo Settlement</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="ambient-glow"></div>
+
+  <header class="app-header">
+    <div class="brand">
+      <div class="chip-logo" aria-hidden="true">
+        <span class="suit">↗</span>
+      </div>
+      <div>
+        <h1>Poker Nite</h1>
+      </div>
+    </div>
+
+    <nav class="main-tabs" role="tablist">
+      <button class="tab-btn active" data-tab="tonight" role="tab" aria-selected="true">
+        Table
+      </button>
+      <button class="tab-btn" data-tab="sidepots" role="tab" aria-selected="false">
+        Side Pots <span id="sidepots-count-badge" class="badge">0</span>
+      </button>
+      <button class="tab-btn" data-tab="players" role="tab" aria-selected="false">
+        Players <span id="players-roster-badge" class="badge">0</span>
+      </button>
+      <button class="tab-btn" data-tab="leaderboard" role="tab" aria-selected="false">
+        Leaderboard
+      </button>
+      <button class="tab-btn" data-tab="history" role="tab" aria-selected="false">
+        History <span id="history-count-badge" class="badge">0</span>
+      </button>
+    </nav>
+
+    <div class="header-actions">
+      <button id="btn-new-night" class="btn btn-outline btn-sm" title="Reset table to venue defaults for a fresh game">
+        Reset Table
+      </button>
+    </div>
+  </header>
+
+  <main class="app-container">
+    <!-- ==================== TAB 1: TONIGHT'S TABLE ==================== -->
+    <section id="tab-tonight" class="tab-panel active" role="tabpanel">
+      <!-- Venue Tag Bar -->
+      <div class="venue-bar">
+        <div class="venue-bar-left">
+          <span class="venue-bar-label">Venue</span>
+          <div id="venue-pills" class="venue-pills" role="radiogroup" aria-label="Select Poker Venue"></div>
+          <button type="button" id="btn-toggle-add-venue" class="btn btn-ghost btn-xs" title="Save a new custom venue preset">
+            + Custom
+          </button>
+        </div>
+        <div class="venue-bar-right" id="venue-summary-strip"></div>
+      </div>
+
+      <!-- Collapsible New Custom Venue Drawer -->
+      <form id="add-venue-drawer" class="denom-drawer hidden" autocomplete="off">
+        <div class="denom-drawer-header">
+          <div>
+            <strong>Create Custom Venue Tag</strong>
+            <span>Saves your current chip values and default buy-in as a reusable venue preset.</span>
+          </div>
+          <button type="button" id="btn-cancel-venue" class="btn btn-ghost btn-xs">Cancel</button>
+        </div>
+        <div class="custom-venue-form-row">
+          <div class="input-group flex-grow">
+            <input type="text" id="custom-venue-name" placeholder="Venue Name (e.g., Mike's Garage)" required />
+          </div>
+          <div class="quick-buyin-selector">
+            <span class="quick-label">Default Buy-In:</span>
+            <div class="currency-field compact">
+              <span>$</span>
+              <input type="number" id="custom-venue-buyin" value="50" min="1" step="any" required />
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary btn-sm">Save Venue Preset</button>
+        </div>
+      </form>
+
+      <!-- Top Summary KPI Bar -->
+      <div class="kpi-strip">
+        <div class="kpi-card">
+          <span class="kpi-label">Session Title / Date</span>
+          <input type="text" id="session-title" class="session-title-input" placeholder="Friday Night Hold'em" />
+        </div>
+        <div class="kpi-card">
+          <span class="kpi-label">Players Seated</span>
+          <div class="kpi-value mono" id="kpi-players">0</div>
+        </div>
+        <div class="kpi-card">
+          <span class="kpi-label">Total Buy-Ins (Pot)</span>
+          <div class="kpi-value mono" id="kpi-buyins">$0.00</div>
+        </div>
+        <div class="kpi-card">
+          <span class="kpi-label">Total Chips Counted</span>
+          <div class="kpi-value mono" id="kpi-chips">$0.00</div>
+        </div>
+        <div class="kpi-card" id="kpi-balance-card">
+          <span class="kpi-label">Table Balance Status</span>
+          <div class="kpi-value mono" id="kpi-discrepancy">Balanced ✓</div>
+        </div>
+      </div>
+
+      <div class="workspace-grid">
+        <!-- LEFT COLUMN: Player Ledger & Chip Setup -->
+        <div class="ledger-column">
+          <div class="panel-card">
+            <div class="panel-header">
+              <div>
+                <h2>Player Ledger</h2>
+              </div>
+              <div class="panel-controls">
+                <div class="mode-switch" role="group" aria-label="Chip input mode">
+                  <button type="button" id="mode-dollar-btn" class="mode-btn active" data-mode="dollar">
+                    $ Value
+                  </button>
+                  <button type="button" id="mode-chips-btn" class="mode-btn" data-mode="chips">
+                    Chips
+                  </button>
+                </div>
+                <button type="button" id="btn-toggle-denom-config" class="btn btn-ghost btn-sm" title="Customize chip values">
+                  Chip Values
+                </button>
+              </div>
+            </div>
+
+            <!-- Collapsible Chip Denomination Configurator -->
+            <div id="denom-config-drawer" class="denom-drawer hidden">
+              <div class="denom-drawer-header">
+                <div>
+                  <strong>Customize Chip Denominations</strong>
+                  <span>Adjust the dollar value of each chip color for your set. Changes automatically recalculate counted stacks.</span>
+                </div>
+                <button type="button" id="btn-reset-denoms" class="btn btn-ghost btn-xs">Reset Defaults</button>
+              </div>
+              <div id="denom-config-list" class="denom-config-list"></div>
+            </div>
+
+            <!-- Quick Add Player Bar -->
+            <form id="add-player-form" class="add-player-bar" autocomplete="off">
+              <div class="input-group flex-grow">
+                <input
+                  type="text"
+                  id="new-player-name"
+                  placeholder="Select or type player name..."
+                  list="saved-players-datalist"
+                  required
+                />
+                <datalist id="saved-players-datalist"></datalist>
+              </div>
+              <div class="input-group">
+                <input
+                  type="text"
+                  id="new-player-venmo"
+                  placeholder="@venmo (optional)"
+                  class="venmo-input"
+                />
+              </div>
+              <div class="quick-buyin-selector">
+                <span class="quick-label">Buy-In:</span>
+                <div class="stepper-capsule">
+                  <button type="button" id="btn-decrement-new-buyin" class="capsule-btn" title="Subtract 1 buy-in increment">−</button>
+                  <div class="capsule-field">
+                    <span>$</span>
+                    <input type="text" inputmode="decimal" id="new-player-buyin" value="50" required />
+                  </div>
+                  <button type="button" id="btn-increment-new-buyin" class="capsule-btn" title="Add 1 buy-in increment">+</button>
+                </div>
+              </div>
+              <button type="submit" class="btn btn-primary">
+                + Add Player
+              </button>
+            </form>
+
+            <!-- Players Table / List -->
+            <div id="players-list" class="players-list"></div>
+          </div>
+        </div>
+
+        <!-- RIGHT COLUMN: Discrepancy Handler & Optimal Venmo Settlement -->
+        <div class="settlement-column">
+          <!-- Discrepancy Handler Banner (Shown dynamically when Total Chips != Total Buy-ins) -->
+          <div id="discrepancy-panel" class="panel-card discrepancy-card hidden">
+            <div class="discrepancy-header">
+              <div class="discrepancy-badge" id="discrepancy-icon">⚠️</div>
+              <div>
+                <h3 id="discrepancy-title">Chip Count Discrepancy Detected</h3>
+                <p id="discrepancy-desc">Total counted chips do not match total buy-ins.</p>
+              </div>
+            </div>
+
+            <div class="strategy-selector">
+              <label class="strategy-label">How should the table resolve this difference?</label>
+              <div class="strategy-options">
+                <label class="strategy-option">
+                  <input type="radio" name="discrepancy-strategy" value="proportional" checked />
+                  <div class="strategy-body">
+                    <div class="strategy-name">Split Proportionally Across Winners</div>
+                    <div class="strategy-sub">Scales profits automatically so winners absorb a missing chip or share extra chips fairly.</div>
+                  </div>
+                </label>
+
+                <label class="strategy-option">
+                  <input type="radio" name="discrepancy-strategy" value="equal" />
+                  <div class="strategy-body">
+                    <div class="strategy-name">Split Evenly Across All Players</div>
+                    <div class="strategy-sub">Divides the discrepancy equally among everyone seated at the table.</div>
+                  </div>
+                </label>
+
+                <label class="strategy-option">
+                  <input type="radio" name="discrepancy-strategy" value="biggest_winner" />
+                  <div class="strategy-body">
+                    <div class="strategy-name">Assign to Biggest Winner (House Rule)</div>
+                    <div class="strategy-sub">The top earner of the night absorbs the rounding/missing chip difference.</div>
+                  </div>
+                </label>
+
+                <label class="strategy-option">
+                  <input type="radio" name="discrepancy-strategy" value="strict" />
+                  <div class="strategy-body">
+                    <div class="strategy-name">Pause Until Recounted ($0.00 Diff)</div>
+                    <div class="strategy-sub">Require exact chip reconciliation before displaying final Venmo payouts.</div>
+                  </div>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <!-- Settlement Card -->
+          <div class="panel-card settlement-card">
+            <div class="panel-header">
+              <div>
+                <h2>Optimal Venmo Payouts</h2>
+                <p class="panel-desc" id="optimization-stats">Minimum transactions required to settle the table</p>
+              </div>
+              <div class="rounding-toggle" title="Round payouts to whole dollars for cleaner Venmos">
+                <label class="switch-label">
+                  <input type="checkbox" id="round-dollars-toggle" />
+                  <span>Round to $1</span>
+                </label>
+              </div>
+            </div>
+
+            <!-- Venmo Balance View Scope Selector -->
+            <div class="settlement-scope-bar">
+              <span class="quick-label">View Venmo Balances:</span>
+              <div class="mode-switch" role="group" aria-label="Venmo balance view mode">
+                <button type="button" class="mode-btn active" data-venmo-scope="main">Main Game</button>
+                <button type="button" class="mode-btn" data-venmo-scope="combined">Combined (+ Side Pots)</button>
+                <button type="button" class="mode-btn" data-venmo-scope="sidepots">Side Pots Only</button>
+              </div>
+            </div>
+
+            <!-- Transfers List -->
+            <div id="transfers-container" class="transfers-container"></div>
+
+            <!-- Action Footer -->
+            <div class="settlement-actions">
+              <button type="button" id="btn-copy-summary" class="btn btn-secondary flex-grow">
+                Copy Summary
+              </button>
+              <button type="button" id="btn-save-night" class="btn btn-emerald flex-grow">
+                Save Session
+              </button>
+            </div>
+          </div>
+
+          <!-- Standings Breakdown Mini-Card -->
+          <div class="panel-card standings-card">
+            <div class="panel-header compact">
+              <h3>Tonight's Net Standings</h3>
+              <span class="text-muted text-xs" id="standings-note">Sorted by net profit</span>
+            </div>
+            <div id="net-standings-list" class="net-standings-list"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== TAB: SIDE POTS ==================== -->
+    <section id="tab-sidepots" class="tab-panel" role="tabpanel">
+      <div class="workspace-grid">
+        <div class="ledger-column">
+          <div class="panel-card">
+            <div class="panel-header">
+              <div>
+                <h2>🎲 Side Pots &amp; Prop Bets</h2>
+                <p class="panel-desc">Create side pots where participating players put in a bet and one winner takes the pot.</p>
+              </div>
+              <button type="button" id="btn-add-sidepot" class="btn btn-primary btn-sm">
+                + New Side Pot
+              </button>
+            </div>
+
+            <div id="sidepots-list" class="sidepots-list"></div>
+          </div>
+        </div>
+
+        <div class="settlement-column">
+          <div class="panel-card">
+            <div class="panel-header">
+              <div>
+                <h2>Side Pots Venmo Settlement</h2>
+                <p class="panel-desc" id="sidepots-settlement-stats">Optimal payouts across all resolved side pots</p>
+              </div>
+            </div>
+            <div id="sidepots-transfers-container" class="transfers-container"></div>
+          </div>
+
+          <div class="panel-card standings-card">
+            <div class="panel-header compact">
+              <h3>Side Pots Net Balances</h3>
+              <span class="text-muted text-xs">Net won/lost across side pots</span>
+            </div>
+            <div id="sidepots-standings-list" class="net-standings-list"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== TAB: PLAYERS DIRECTORY ==================== -->
+    <section id="tab-players" class="tab-panel" role="tabpanel">
+      <div class="panel-card">
+        <div class="panel-header">
+          <div>
+            <h2>Saved Players &amp; Venmo Directory</h2>
+            <p class="panel-desc">Manage the players and @venmo handles that appear in your autocomplete dropdown.</p>
+          </div>
+          <div class="panel-controls">
+            <button type="button" id="btn-reset-roster" class="btn btn-outline btn-sm">
+              Restore Venue Regulars Only
+            </button>
+          </div>
+        </div>
+
+        <form id="directory-add-form" class="add-player-bar" autocomplete="off">
+          <div class="input-group flex-grow">
+            <input type="text" id="dir-player-name" placeholder="New player name..." required />
+          </div>
+          <div class="input-group">
+            <input type="text" id="dir-player-venmo" placeholder="@venmo-handle" class="venmo-input" />
+          </div>
+          <button type="submit" class="btn btn-primary">
+            + Save to Directory
+          </button>
+        </form>
+
+        <div id="directory-list-container" class="players-list"></div>
+      </div>
+    </section>
+
+    <!-- ==================== TAB 2: LEADERBOARD ==================== -->
+    <section id="tab-leaderboard" class="tab-panel" role="tabpanel">
+      <div class="panel-card">
+        <div class="panel-header">
+          <div>
+            <h2 id="leaderboard-heading">Poker Club Leaderboard</h2>
+            <p class="panel-desc" id="leaderboard-subtitle">Cumulative stats across saved poker nights on this device.</p>
+          </div>
+          <div class="panel-controls">
+            <button type="button" id="btn-export-data" class="btn btn-outline btn-sm">
+              ⬇️ Export Backup (JSON)
+            </button>
+            <label class="btn btn-outline btn-sm file-label">
+              ⬆️ Import Backup
+              <input type="file" id="input-import-data" accept=".json" hidden />
+            </label>
+          </div>
+        </div>
+
+        <div class="venue-bar" style="margin-bottom: 1.15rem;">
+          <div class="venue-bar-left">
+            <span class="venue-bar-label">📍 Filter by Venue</span>
+            <div id="leaderboard-venue-pills" class="venue-pills" role="radiogroup" aria-label="Filter Leaderboard by Venue"></div>
+          </div>
+        </div>
+
+        <div id="leaderboard-container" class="leaderboard-container"></div>
+      </div>
+    </section>
+
+    <!-- ==================== TAB 3: PAST NIGHTS HISTORY ==================== -->
+    <section id="tab-history" class="tab-panel" role="tabpanel">
+      <div class="panel-card">
+        <div class="panel-header">
+          <div>
+            <h2>Saved Game History</h2>
+            <p class="panel-desc">Review past sessions, inspect settlements, or reload a session to edit.</p>
+          </div>
+          <button type="button" id="btn-clear-history" class="btn btn-danger-ghost btn-sm">
+            Clear All History
+          </button>
+        </div>
+
+        <div id="history-list-container" class="history-list-container"></div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
+

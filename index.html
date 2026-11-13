@@ -29,9 +29,6 @@
       <button class="tab-btn" data-tab="sidepots" role="tab" aria-selected="false">
         Side Pots <span id="sidepots-count-badge" class="badge">0</span>
       </button>
-      <button class="tab-btn" data-tab="players" role="tab" aria-selected="false">
-        Players <span id="players-roster-badge" class="badge">0</span>
-      </button>
       <button class="tab-btn" data-tab="leaderboard" role="tab" aria-selected="false">
         Leaderboard
       </button>
@@ -325,37 +322,6 @@
             <div id="sidepots-standings-list" class="net-standings-list"></div>
           </div>
         </div>
-      </div>
-    </section>
-
-    <!-- ==================== TAB: PLAYERS DIRECTORY ==================== -->
-    <section id="tab-players" class="tab-panel" role="tabpanel">
-      <div class="panel-card">
-        <div class="panel-header">
-          <div>
-            <h2>Saved Players &amp; Venmo Directory</h2>
-            <p class="panel-desc">Manage the players and @venmo handles that appear in your autocomplete dropdown.</p>
-          </div>
-          <div class="panel-controls">
-            <button type="button" id="btn-reset-roster" class="btn btn-outline btn-sm">
-              Restore Venue Regulars Only
-            </button>
-          </div>
-        </div>
-
-        <form id="directory-add-form" class="add-player-bar" autocomplete="off">
-          <div class="input-group flex-grow">
-            <input type="text" id="dir-player-name" placeholder="New player name..." required />
-          </div>
-          <div class="input-group">
-            <input type="text" id="dir-player-venmo" placeholder="@venmo-handle" class="venmo-input" />
-          </div>
-          <button type="submit" class="btn btn-primary">
-            + Save to Directory
-          </button>
-        </form>
-
-        <div id="directory-list-container" class="players-list"></div>
       </div>
     </section>
 

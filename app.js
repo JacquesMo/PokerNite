@@ -176,13 +176,9 @@ function loadFromStorage() {
       state.history = JSON.parse(savedHistory);
     }
 
-    const savedRoster = localStorage.getItem(STORAGE_KEYS.ROSTER);
-    if (savedRoster) {
-      state.roster = JSON.parse(savedRoster);
-    } else {
-      // Seed venue regulars on first load
-      seedAllVenueDefaultPlayersToRoster();
-    }
+    // Populate dropdown roster directly from BUILTIN_VENUES in code
+    state.roster = {};
+    seedAllVenueDefaultPlayersToRoster();
 
     const savedSession = localStorage.getItem(STORAGE_KEYS.ACTIVE_SESSION);
     if (savedSession) {
@@ -616,7 +612,6 @@ function renderAll() {
   renderSidePots();
   renderLeaderboard();
   renderHistory();
-  renderPlayersDirectory();
   saveActiveSession();
 }
 
@@ -1598,60 +1593,6 @@ function renderHistory() {
   });
 }
 
-function renderPlayersDirectory() {
-  const container = document.getElementById('directory-list-container');
-  const badgeEl = document.getElementById('players-roster-badge');
-  if (!container) return;
-
-  const entries = Object.entries(state.roster).sort((a, b) =>
-    (a[1].name || '').localeCompare(b[1].name || '')
-  );
-
-  if (badgeEl) {
-    badgeEl.textContent = String(entries.length);
-  }
-
-  if (entries.length === 0) {
-    container.innerHTML = `
-      <div class="empty-state">
-        No saved players in the directory. Add players above or click <strong>Restore Venue Regulars Only</strong>.
-      </div>
-    `;
-    return;
-  }
-
-  container.innerHTML = `
-    <div class="directory-grid">
-      ${entries
-        .map(([key, r]) => {
-          return `
-            <div class="directory-row">
-              <div class="directory-player-info">
-                <span class="directory-player-name">${escapeHtml(r.name)}</span>
-                <input
-                  type="text"
-                  class="directory-venmo-input"
-                  data-roster-action="edit-venmo"
-                  data-roster-key="${escapeHtml(key)}"
-                  value="${escapeHtml(r.venmo || '')}"
-                  placeholder="@venmo-handle"
-                />
-              </div>
-              <button
-                type="button"
-                class="btn-remove-player"
-                data-roster-action="delete-player"
-                data-roster-key="${escapeHtml(key)}"
-                title="Remove ${escapeHtml(r.name)} from saved players"
-              >✕</button>
-            </div>
-          `;
-        })
-        .join('')}
-    </div>
-  `;
-}
-
 /* ==========================================================================
    VENUE REGULARS & ACTIONS
    ========================================================================== */
@@ -2130,67 +2071,6 @@ function setupEventListeners() {
       showToast('Cleared game history.');
     }
   });
-
-  // Players Directory Tab Actions
-  const dirAddForm = document.getElementById('directory-add-form');
-  if (dirAddForm) {
-    dirAddForm.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const nameEl = document.getElementById('dir-player-name');
-      const venmoEl = document.getElementById('dir-player-venmo');
-      const name = (nameEl?.value || '').trim();
-      if (!name) return;
-      const venmo = (venmoEl?.value || '').trim();
-      rememberPlayerInRoster(name, venmo);
-      if (nameEl) nameEl.value = '';
-      if (venmoEl) venmoEl.value = '';
-      renderAll();
-      showToast(`Saved ${name} to Players Directory.`);
-    });
-  }
-
-  const resetRosterBtn = document.getElementById('btn-reset-roster');
-  if (resetRosterBtn) {
-    resetRosterBtn.addEventListener('click', () => {
-      state.roster = {};
-      seedAllVenueDefaultPlayersToRoster();
-      renderAll();
-      showToast('Restored directory to the 9 venue regulars.');
-    });
-  }
-
-  const dirListContainer = document.getElementById('directory-list-container');
-  if (dirListContainer) {
-    dirListContainer.addEventListener('change', (e) => {
-      const target = e.target;
-      if (target.getAttribute('data-roster-action') === 'edit-venmo') {
-        const key = target.getAttribute('data-roster-key');
-        if (key && state.roster[key]) {
-          state.roster[key].venmo = target.value.trim();
-          // Also sync open table players with matching name
-          state.players.forEach((p) => {
-            if ((p.name || '').trim().toLowerCase() === key) {
-              p.venmo = state.roster[key].venmo;
-            }
-          });
-          renderAll();
-          showToast(`Updated Venmo handle for ${state.roster[key].name}`);
-        }
-      }
-    });
-
-    dirListContainer.addEventListener('click', (e) => {
-      const btn = e.target.closest('button[data-roster-action="delete-player"]');
-      if (!btn) return;
-      const key = btn.getAttribute('data-roster-key');
-      if (key && state.roster[key]) {
-        const removedName = state.roster[key].name;
-        delete state.roster[key];
-        renderAll();
-        showToast(`Removed ${removedName} from saved players.`);
-      }
-    });
-  }
 
   // Export & Import JSON Backup
   document.getElementById('btn-export-data').addEventListener('click', () => {
